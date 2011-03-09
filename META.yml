@@ -6,7 +6,7 @@ author:
 build_requires:
   ExtUtils::MakeMaker: 6.42
   File::Temp: 0
-  Tapper::Test: 3.000001
+  Tapper::Test: 3.000002
   Test::Deep: 0
   Test::Fixture::DBIC::Schema: 0
   Test::MockModule: 0
@@ -38,8 +38,8 @@ requires:
   Log::Log4perl: 0
   Method::Signatures: 0
   Moose: 0
-  Tapper::Base: 3.000001
-  Tapper::Remote: 3.000001
-  YAML: 0
-  YAML::Syck: 0
-version: 3.000001
+  Tapper::Base: 3.000002
+  Tapper::Remote: 3.000002
+  YAML: 0.72
+  YAML::Syck: 1.17
+version: 3.000002
