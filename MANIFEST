@@ -43,8 +43,11 @@ t/misc/dev/disk/by-label/testing
 t/misc/dev/hda2
 t/misc/files/Debian/etc/issue
 t/misc/files/SuSE/etc/SuSE-release
+t/misc/packages/debian_package_test.deb
+t/tapper-installer-precondition-exec.t
 t/tapper-installer-precondition-image.t
 t/tapper-installer-precondition-kernelbuild.t
+t/tapper-installer-precondition-package.t
 t/tapper-installer-precondition-prc.t
 t/tapper-installer-precondition-simnow.t
 t/tapper_systeminstaller_base.t

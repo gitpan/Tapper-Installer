@@ -2,8 +2,10 @@ package Tapper::Installer::Precondition::Package;
 
 use strict;
 use warnings;
+use 5.010;
 
-use Method::Signatures;
+use Tapper::Installer::Precondition::Exec;
+use File::Basename;
 use Moose;
 extends 'Tapper::Installer::Precondition';
 
@@ -33,8 +35,9 @@ This function encapsulates installing one single package. At the moment, .tar,
 
 =cut
 
-method install ($package)
+sub install
 {
+        my ($self, $package) = @_;
         my $filename = $package->{filename};
 	$self->log->debug("installing $filename");
 
@@ -42,38 +45,47 @@ method install ($package)
         my $package_dir = '';
         $package_dir    = $self->cfg->{paths}{package_dir} unless $filename =~m(^/);
         my $pkg         = "$package_dir/$filename";
-          
+
         my ($error, $type) = $self->get_file_type("$pkg");
         return("Can't get file type of $filename: $type") if $error;
 
 
         my $output;
         $self->log->debug("type is $type");
-        if ($type eq "gzip") {
-                ($error, $output) = $self->log_and_exec("tar --no-same-owner -C $basedir -xzf $pkg");
-                return("can't unpack package $filename: $output\n") if $error;
-        } elsif ($type eq "tar") {
-                ($error, $output) = $self->log_and_exec("tar --no-same-owner -C $basedir -xf $pkg");
-                return("can't unpack package $filename: $output\n") if $error;
-        } elsif ($type eq "bz2") {
-                ($error, $output) = $self->log_and_exec("tar --no-same-owner -C $basedir -xjf $pkg");
-                return("can't unpack package $filename: $output\n") if $error;
-        } elsif ($type eq "deb") {
-                ($error, $output) = $self->log_and_exec("dpkg --root $basedir -i $pkg");
-                return("can't install package $filename: $output\n") if $error;
-        } elsif ($type eq "rpm") {
-                # use -U to overwrite possibly existing	older package
-                ($error, $output) = $self->log_and_exec("rpm -U --root $basedir $pkg"); 
-                return("can't install package $filename: $output\n") if $error;
-        } else {
-                # has to be print, because we return our error message
-                # through the pipe
-                $self->log->warn("$pkg is of unrecognised file type \"$type\"");
-                return("$pkg is of unrecognised file type \"$type\"");
+        given($type){
+                when("gzip") {
+                        ($error, $output) = $self->log_and_exec("tar --no-same-owner -C $basedir -xzf $pkg");
+                        return("can't unpack package $filename: $output\n") if $error;
+                }
+                when("tar") {
+                        ($error, $output) = $self->log_and_exec("tar --no-same-owner -C $basedir -xf $pkg");
+                        return("can't unpack package $filename: $output\n") if $error;
+                }
+                when("bz2") {
+                        ($error, $output) = $self->log_and_exec("tar --no-same-owner -C $basedir -xjf $pkg");
+                        return("can't unpack package $filename: $output\n") if $error;
+                }
+                when("deb") {
+                        system("cp $pkg $basedir/");
+                        $pkg = basename $pkg;
+                        my $exec = Tapper::Installer::Precondition::Exec->new($self->cfg);
+                        return $exec->install({command => "dpkg -i $pkg"});
+                }
+                when("rpm") {
+                        system("cp $pkg $basedir/");
+                        $pkg = basename $pkg;
+                        my $exec = Tapper::Installer::Precondition::Exec->new($self->cfg);
+                        # use -U to overwrite possibly existing	older package
+                        return $exec->install({command => "rpm -U  $pkg"});
+                }
+                default{
+                        $self->log->warn(qq($pkg is of unrecognised file type "$type"));
+                        return(qq($pkg is of unrecognised file type "$type"));
+                }
         }
         return(0);
 }
-;
+
 
 
 

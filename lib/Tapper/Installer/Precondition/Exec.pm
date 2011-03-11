@@ -6,6 +6,8 @@ use warnings;
 use Method::Signatures;
 use Moose;
 use IO::Handle; # needed to set pipe nonblocking
+use IO::Select;
+
 extends 'Tapper::Installer::Precondition';
 
 
@@ -21,6 +23,24 @@ Tapper::Installer::Precondition::Exec - Execute a program inside the installed s
 
 =cut
 
+=head2 set_env_variables
+
+Set environment variables for executed command/program.
+
+=cut
+
+sub set_env_variables
+{
+        my ($self) = @_;
+
+        $ENV{TAPPER_TESTRUN}         = $self->cfg->{test_run};
+        $ENV{TAPPER_SERVER}          = $self->cfg->{mcp_host};
+        $ENV{TAPPER_REPORT_SERVER}   = $self->cfg->{report_server};
+        $ENV{TAPPER_REPORT_API_PORT} = $self->cfg->{report_api_port};
+        $ENV{TAPPER_REPORT_PORT}     = $self->cfg->{report_port};
+        $ENV{TAPPER_HOSTNAME}        = $self->cfg->{hostname};
+        return;
+}
 
 =head2 install
 
@@ -35,32 +55,32 @@ feature available to all other preconditions.
 
 =cut
 
-method install ($exec)
+sub install
 {
-        my $filename = $exec->{filename};
+        my  ($self, $exec) = @_;
+
+        my $command = $exec->{command};
         my @options;
         @options = @{$exec->{options}} if $exec->{options};
 
-	$self->log->debug("executing $filename with options ",join (" ",@options));
+        if ($exec->{filename}) {
+                $command = $self->cfg->{paths}{base_dir}.$exec->{filename};
+                return("$command is not an executable") if not -x $command;
+        }
 
-        my $fullpath = $self->cfg->{paths}{base_dir}.$filename;
-        return("$filename is not an executable") if not -x $fullpath;
-        
+        $self->log->debug("executing $command with options ",join (" ",@options));
+
+
 	pipe (my $read, my $write);
 	return ("Can't open pipe:$!") if not (defined $read and defined $write);
-	
+
 	# we need to fork for chroot
 	my $pid = fork();
 	return "fork failed: $!" if not defined $pid;
-	
+
 	# hello child
 	if ($pid == 0) {
-                $ENV{TAPPER_TESTRUN}         = $self->cfg->{test_run};
-                $ENV{TAPPER_SERVER}          = $self->cfg->{mcp_host};
-                $ENV{TAPPER_REPORT_SERVER}   = $self->cfg->{report_server};
-                $ENV{TAPPER_REPORT_API_PORT} = $self->cfg->{report_api_port};
-                $ENV{TAPPER_REPORT_PORT}     = $self->cfg->{report_port};
-                $ENV{TAPPER_HOSTNAME}        = $self->cfg->{hostname};
+                $self->set_env_variables;
 
                 close $read;
 		# chroot to execute script inside the future root file system
@@ -69,13 +89,13 @@ method install ($exec)
                 ($error, $output)    = $self->log_and_exec("mount -t proc proc ".$self->cfg->{paths}{base_dir}."/proc");
 		chroot $self->cfg->{paths}{base_dir};
 		chdir ("/");
-                ($error, $output)=$self->log_and_exec($filename,@options);
+                ($error, $output)=$self->log_and_exec($command,@options);
                 print( $write $output, "\n") if $output;
                 close $write;
                 exit $error;
 	} else {
                 close $write;
-                my $select = new IO::Select( $read );
+                my $select = IO::Select->new( $read );
                 my ($error, $output);
         MSG_FROM_CHILD:
                 while (my @ready = $select->can_read()){
@@ -84,7 +104,7 @@ method install ($exec)
                         $output.=$tmpout;
                 }
                 if ($output) {
-                        my $outfile = $filename;
+                        my $outfile = $command;
                         $outfile =~ s/[^A-Za-z_-]/_/g;
                         $self->file_save($output,$outfile);
                 }
@@ -93,12 +113,12 @@ method install ($exec)
                 ($error, $output)=$self->log_and_exec("umount ".$self->cfg->{paths}{base_dir}."/proc");
                 waitpid($pid,0);
                 if ($?) {
-                        return("executing $filename failed");
+                        return("executing $command failed");
                 }
 		return(0);
 	}
 }
-;
+
 
 
 1;

@@ -1,9 +1,9 @@
 ---
 abstract: 'Tapper - Install everything needed for a test'
 author:
-  - 'AMD OSRC Tapper Team, C<< <tapper at amd64.org> >>'
   - 'AMD OSRC Tapper Team <tapper@amd64.org>'
 build_requires:
+  Cwd: 0
   ExtUtils::MakeMaker: 6.42
   File::Temp: 0
   Tapper::Test: 3.000002
@@ -15,7 +15,7 @@ build_requires:
 configure_requires:
   ExtUtils::MakeMaker: 6.42
 distribution_type: module
-generated_by: 'Module::Install version 1.00'
+generated_by: 'Module::Install version 0.91'
 license: freebsd
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -33,6 +33,7 @@ requires:
   File::ShareDir: 0
   File::Type: 0
   Hash::Merge::Simple: 0
+  IO::Select: 0
   IPC::Open3: 0
   List::Util: 0
   Log::Log4perl: 0
@@ -42,4 +43,7 @@ requires:
   Tapper::Remote: 3.000002
   YAML: 0.72
   YAML::Syck: 1.17
-version: 3.000002
+resources:
+  bugtracker: http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Tapper-Installer
+  repository: git://github.com/amd/Tapper-Installer.git
+version: 3.000004
