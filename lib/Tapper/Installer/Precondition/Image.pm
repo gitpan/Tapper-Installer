@@ -89,7 +89,8 @@ sub configure_fstab
         open (my $FSTAB, ">", $self->cfg->{paths}{base_dir}."/etc/fstab") or return "Can't open fstab for appending: $!";
 
         # write defaults for fstab
-        print $FSTAB "proc\t/proc\tproc\tdefaults\t0 0\n","sysfs\t/sys\tsysfs\tnoauto\t0 0\n";
+        print $FSTAB "proc\t/proc\tproc\tdefaults\t0 0\n","sysfs\t/sys\tsysfs\tauto\t0 0\n";
+	print $FSTAB "/data/tapper tapper:/data/tapper nfs noauto,vers=3 0 0\n";
 
         foreach my $image (@{$self->images}) {
                 print $FSTAB $image->{partition},"\t",$image->{mount},"\text3\tdefaults\t1 1\n";
@@ -376,6 +377,7 @@ and testability.
 sub write_menu_lst
 {
         my ($self, $content, $truncate) = @_;
+	$self->makedir($self->cfg->{paths}{base_dir}."/boot/grub/");
 	my $menu_lst_file = $self->cfg->{paths}{base_dir}."/boot/grub/menu.lst";
         my $mode = '>>';
         if ($truncate) {
@@ -633,7 +635,7 @@ Install an image to a given partition and mount it to a given mount point.
 sub copy_image
 {
         my ($self, $device_file, $image_file, $mount_point) = @_;
-        $image_file = $self->cfg->{paths}{image_dir}.$image_file if not -e $image_file;
+        $image_file = $self->cfg->{paths}{image_dir}.$image_file unless $image_file =~m(^/); 
 
 	# Image exists?
         if (not -e $image_file) {
