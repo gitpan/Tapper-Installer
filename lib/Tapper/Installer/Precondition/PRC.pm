@@ -1,4 +1,10 @@
 package Tapper::Installer::Precondition::PRC;
+BEGIN {
+  $Tapper::Installer::Precondition::PRC::AUTHORITY = 'cpan:AMD';
+}
+{
+  $Tapper::Installer::Precondition::PRC::VERSION = '4.0.1';
+}
 
 use strict;
 use warnings;
@@ -11,25 +17,7 @@ use YAML;
 extends 'Tapper::Installer::Precondition';
 
 
-=head1 NAME
 
-Tapper::Installer::Precondition::PRC - Install Program Run Control to a given location
-
-=head1 SYNOPSIS
-
- use Tapper::Installer::Precondition::PRC;
-
-=head1 FUNCTIONS
-
-=cut
-
-=head2 create_common_config
-
-Create the part of the config that is the same for both Windows and Unix.
-
-@return hash ref
-
-=cut
 
 sub create_common_config
 {
@@ -46,25 +34,16 @@ sub create_common_config
         $config->{scenario_id}     = $self->{cfg}->{scenario_id} if $self->{cfg}->{scenario_id};
         $config->{paths}           = $self->{cfg}->{paths};
         $config->{files}           = $self->{cfg}->{files} if $self->{cfg}->{files} ;
+        $config->{testplan}        = $self->{cfg}->{testplan} if $self->{cfg}->{testplan};
+
         return $config;
 }
 
-=head2 create_config
 
-Generate a config for PRC. Take special care for virtualisation
-environments. In this case, the host system runs a proxy which collects status
-messages from all virtualisation guests.
-
-@param hash reference - contains all information about the PRC to install
-
-@return success - (0, config hash)
-@return error   - (1, error string)
-
-=cut
-
-sub create_config
+sub create_unix_config
 {
         my ($self, $prc) = @_;
+
         my $config = $self->create_common_config($prc->{config});
         $config    = merge($config, {times=>$self->{cfg}->{times}});
         my @timeouts;
@@ -78,20 +57,25 @@ sub create_config
         {
                 $config->{mcp_server}      = $self->{cfg}->{mcp_server};
         }
-        
 
-        return (0, $config);
+        return $config;
 }
 
 
-=head2 install_startscript
+sub write_unix_config
+{
+        my ($self, $prc) = @_;
+        my $basedir = $self->cfg->{paths}{base_dir};
+        my $config = $self->create_unix_config($prc);
 
-Install a startscript for init in test state.
+        $self->makedir("$basedir/etc") if not -d "$basedir/etc";
+        open my $file, '>',"$basedir/etc/tapper" or return "Can not open /etc/tapper in $basedir:$!";
+        print $file YAML::Dump($config);
+        close $file;
+        return 0;
+}
 
-@return success - 0
-@return error   - error string
 
-=cut
 
 sub install_startscript
 {
@@ -104,26 +88,26 @@ sub install_startscript
         ($error, $retval) = $self->log_and_exec("cp",module_file('Tapper::Installer', "startfiles/$distro/etc/init.d/tapper"),"$basedir/etc/init.d/tapper");
         return $retval if $error;
         if ($distro!~/tapper/) {
-        
+
                 pipe (my $read, my $write);
                 return ("Can't open pipe:$!") if not (defined $read and defined $write);
 
                 # fork for the stuff inside chroot
                 my $pid     = fork();
                 return "fork failed: $!" if not defined $pid;
-	
+
                 # child
                 if ($pid == 0) {
                         close $read;
                         chroot $basedir;
                         chdir ("/");
-		
+
                         my $ret = 0;
                         my ($error, $retval);
-                        if ($distro=~m/suse/) {
+                        if ($distro=~m/suse|debian/) {
                                 ($error, $retval)=$self->log_and_exec("insserv","/etc/init.d/tapper");
                         } elsif ($distro=~m/(redhat)|(fedora)/) {
-                                ($error, $retval)=$self->log_and_exec("chkconfig","--add","tapper"); 
+                                ($error, $retval)=$self->log_and_exec("chkconfig","--add","tapper");
                         } elsif ($distro=~/gentoo/) {
                                 ($error, $retval)=$self->log_and_exec("rc-update", "add", "tapper_gentoo", "default");
                         } else {
@@ -143,22 +127,12 @@ sub install_startscript
         }
 }
 
-=head2 create_win_config
 
-Create the config for a windows guest running the special Win-PRC. Win-PRC
-expects a flat YAML with some different keys and does not want any waste
-options. 
-
-@param hash reference - contains all information about the PRC to install
-
-@return success - (0, config hash)
-@return error   - (1, error string)
-
-=cut
-
-sub create_win_config
+sub create_windows_config
 {
         my ($self, $prc) = @_;
+        my $basedir = $self->cfg->{paths}{base_dir};
+
         my $config = $self->create_common_config();
         $config->{guest_number} = $prc->{config}->{guest_number} if $prc->{config}->{guest_number};
 
@@ -182,11 +156,150 @@ sub create_win_config
                 $config->{test0_runtime_default} = $prc->{config}->{runtime};
                 $config->{test0_timeout}         = $prc->{config}->{timeout_testprogram}
         }
-        
-        return (0, $config);
-        
+        return $config;
+
 }
 
+
+sub write_windows_config
+{
+        my ($self, $prc) = @_;
+
+        my $config = $self->create_windows_config($prc);
+        my $basedir = $self->cfg->{paths}{base_dir};
+        open my $file, '>', $basedir.'/test.config' or return "Can not open /test.config in $basedir:$!";
+        print $file YAML::Dump($config);
+        close $file;
+
+        return 0
+}
+
+
+
+
+sub install
+{
+        my ($self, $prc) = @_;
+
+        my $basedir = $self->cfg->{paths}{base_dir};
+        my ($error, $retval);
+        my $distro = $self->get_distro($basedir);
+        $retval    = $self->install_startscript($distro) if $distro and not $prc->{skip_startscript};
+        return $retval if $retval;
+
+        $error = $self->write_unix_config($prc);
+        return $error if $error;
+
+
+        $error = $self->write_windows_config($prc);
+        return $error if $error;
+
+        if ($prc->{tapper_package}) {
+                my $pkg_object=Tapper::Installer::Precondition::Package->new($self->cfg);
+                my $package={filename => $prc->{tapper_package}};
+                $self->logdie($retval) if $retval = $pkg_object->install($package);
+        }
+
+        return 0;
+}
+
+
+
+
+sub get_distro
+{
+        my ($self, $dir) = @_;
+        my @files=glob("$dir/etc/*-release");
+        for my $file(@files){
+                return "suse"    if $file  =~ /suse/i;
+                return "redhat"  if $file  =~ /redhat/i;
+                return "gentoo"  if $file  =~ /gentoo/i;
+                return "tapper" if $file  =~ /tapper/i;
+        }
+        {
+                open my $fh, '<',"$dir/etc/issue" or next;
+                local $\='';
+                my $issue = <$fh>;
+                close $fh;
+                my $distro;
+                ($distro) = $issue =~ m/(Debian)/;
+                return lc($distro) if $distro;
+        }
+        return "";
+}
+
+
+1;
+
+__END__
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Tapper::Installer::Precondition::PRC
+
+=head1 SYNOPSIS
+
+ use Tapper::Installer::Precondition::PRC;
+
+=head1 NAME
+
+Tapper::Installer::Precondition::PRC - Install Program Run Control to a given location
+
+=head1 FUNCTIONS
+
+=head2 create_common_config
+
+Create the part of the config that is the same for both Windows and Unix.
+
+@return hash ref
+
+=head2 create_unix_config
+
+Generate a config for PRC running on Unix system. Take special care for
+virtualisation environments. In this case, the host system runs a proxy
+which collects status messages from all virtualisation guests.
+
+@param hash reference - contains all information about the PRC to install
+
+@return hash ref - config
+
+=head2 write_unix_config
+
+Generate and write config for unix test.
+
+@param hash reference - contains all information about the PRC to install
+
+@return success - 0
+@return error   - error string
+
+=head2 install_startscript
+
+Install a startscript for init in test state.
+
+@return success - 0
+@return error   - error string
+
+=head2 create_windows_config
+
+Create the config for a windows guest running the special Win-PRC. Win-PRC
+expects a flat YAML with some different keys and does not want any waste
+options.
+
+@param hash reference - contains all information about the PRC to install
+
+@return hash ref - windows config
+
+=head2 write_windows_config
+
+Generate and write config for windows guest.
+
+@param hash reference - contains all information about the PRC to install
+
+@return success - 0
+@return error   - error string
 
 =head2 install
 
@@ -201,48 +314,6 @@ coded which isn't a good thing either.
 @return success - 0
 @return error   - return value of system or error string
 
-=cut
-
-sub install
-{
-        my ($self, $prc) = @_;
-
-        my $basedir = $self->cfg->{paths}{base_dir};
-        my ($error, $retval);
-        my $distro = $self->get_distro($basedir);
-        $retval    = $self->install_startscript($distro) if $distro and not $distro eq 'Debian';
-        return $retval if $retval;
-
-        my $config;
-        ($error, $config) = $self->create_config($prc);
-        return $config if $error;
-
-        $self->makedir("$basedir/etc") if not -d "$basedir/etc";
-
-        open my $FILE, '>',"$basedir/etc/tapper" or return "Can not open /etc/tapper in $basedir:$!";
-        print $FILE YAML::Dump($config);
-        close $FILE;
-
-        ($error, $config) = $self->create_win_config($prc);
-        return $config if $error;
-
-        open $FILE, '>', $basedir.'/test.config' or return "Can not open /test.config in $basedir:$!";
-        print $FILE YAML::Dump($config);
-        close $FILE;
-
-
-        
-        if ($prc->{tapper_package}) {
-                my $pkg_object=Tapper::Installer::Precondition::Package->new($self->cfg);
-                my $package={filename => $prc->{tapper_package}};
-                $self->logdie($retval) if $retval = $pkg_object->install($package);
-        }
-
-        return 0;
-}
-
-
-
 =head2 get_distro
 
 Find out which distribution is installed below the directory structure
@@ -254,53 +325,17 @@ distribution
 @return success - name of the distro
 @return error   - empty string
 
-=cut
-
-sub get_distro
-{
-        my ($self, $dir) = @_;
-	my @files=glob("$dir/etc/*-release");
-	for my $file(@files){
-		return "suse"    if $file  =~ /suse/i;
-		return "redhat"  if $file  =~ /redhat/i;
-		return "gentoo"  if $file  =~ /gentoo/i;
-		return "tapper" if $file  =~ /tapper/i;
-	}
-        {
-                open my $fh, '<',"$dir/etc/issue" or next;
-                local $\='';
-                my $issue = <$fh>;
-                close $fh;
-                my $distro;
-                ($distro) = $issue =~ m/(Debian)/;
-                return $distro if $distro;
-        }
-	return "";
-}
-
-
-1;
-
 =head1 AUTHOR
 
-AMD OSRC Tapper Team, C<< <tapper at amd64.org> >>
+AMD OSRC Tapper Team <tapper@amd64.org>
 
-=head1 BUGS
+=head1 COPYRIGHT AND LICENSE
 
-None.
+This software is Copyright (c) 2012 by Advanced Micro Devices, Inc..
 
-=head1 SUPPORT
+This is free software, licensed under:
 
-You can find documentation for this module with the perldoc command.
+  The (two-clause) FreeBSD License
 
- perldoc Tapper
+=cut
 
-
-=head1 ACKNOWLEDGEMENTS
-
-
-=head1 COPYRIGHT & LICENSE
-
-Copyright 2008-2011 AMD OSRC Tapper Team, all rights reserved.
-
-This program is released under the following license: freebsd

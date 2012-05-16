@@ -20,16 +20,16 @@ Log::Log4perl->init(\$string);
 
 
 use subs qw/chroot chdir/;
-sub chroot { return;} 
+sub chroot { return; }
 sub chdir  { return; }
 
 my $tempdir = tempdir( CLEANUP => 1 );
-my $config = {paths => 
+my $config = {paths =>
               {base_dir => $tempdir }
              };
 
 
-BEGIN { 
+BEGIN {
         use_ok('Tapper::Installer::Precondition::Exec');
 }
 

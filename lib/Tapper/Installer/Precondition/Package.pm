@@ -1,4 +1,10 @@
 package Tapper::Installer::Precondition::Package;
+BEGIN {
+  $Tapper::Installer::Precondition::Package::AUTHORITY = 'cpan:AMD';
+}
+{
+  $Tapper::Installer::Precondition::Package::VERSION = '4.0.1';
+}
 
 use strict;
 use warnings;
@@ -10,41 +16,46 @@ use Moose;
 extends 'Tapper::Installer::Precondition';
 
 
-=head1 NAME
-
-Tapper::Installer::Precondition::Package - Install a package to a given location
-
-=head1 SYNOPSIS
-
- use Tapper::Installer::Precondition::Package;
-
-=head1 FUNCTIONS
-
-=cut
-
-
-=head2 install
-
-This function encapsulates installing one single package. At the moment, .tar,
-.tar.gz, .tar.bz2, rpm and deb are recognised.
-
-@param hash reference - contains all information about the package
-
-@return success - 0
-@return error   - error string
-
-=cut
 
 sub install
 {
         my ($self, $package) = @_;
+        if ($package->{url}) {
+                my ($proto, $fullpath) = $package->{url} =~ m|^(\w+)://(.+)$|;
+                given($proto) {
+                        when ('nfs') {
+                                my $nfs_dir='/mnt/nfs';
+                                $self->makedir($nfs_dir);
+                                my $path = dirname $fullpath;
+                                my $filename = basename $fullpath;
+                                my ($error, $retval) = $self->log_and_exec("mount $path $nfs_dir");
+                                return ("Can't mount nfs share $path to $nfs_dir: $retval") if $error;
+                                delete $package->{url};
+                                $package->{filename} = "$nfs_dir/$filename";
+                                $self->install($package);
+                                ($error, $retval) = $self->log_and_exec("umount $nfs_dir");
+                                return 0;
+                        }
+                        default { return ("Procol'$proto' is not supported") }
+                }
+        }
+
+
         my $filename = $package->{filename};
-	$self->log->debug("installing $filename");
+        $self->log->debug("installing $filename");
 
         my $basedir     = $self->cfg->{paths}{base_dir};
+
+        # install into subdir
+        if ($package->{target_directory}) {
+                $basedir       .= $package->{target_directory};
+                $self->makedir($basedir) if not -d $basedir;
+        }
+
         my $package_dir = '';
-        $package_dir    = $self->cfg->{paths}{package_dir} unless $filename =~m(^/);
-        my $pkg         = "$package_dir/$filename";
+        $package_dir    = $self->cfg->{paths}{package_dir};
+        my $pkg = $filename;
+        $pkg = "$package_dir/$filename" unless $filename =~ m(^/);
 
         my ($error, $type) = $self->get_file_type("$pkg");
         return("Can't get file type of $filename: $type") if $error;
@@ -86,31 +97,52 @@ sub install
         return(0);
 }
 
-
-
-
 1;
+
+__END__
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Tapper::Installer::Precondition::Package
+
+=head1 SYNOPSIS
+
+ use Tapper::Installer::Precondition::Package;
+
+=head1 NAME
+
+Tapper::Installer::Precondition::Package - Install a package to a given location
+
+=head1 FUNCTIONS
+
+=head2 install
+
+This function encapsulates installing one single package. At the moment, .tar,
+.tar.gz, .tar.bz2, rpm and deb are recognised.
+Recognised options for package preconditions are:
+* filename         - absolute or relative path of the package file (relativ to package_dir in config)
+* target_directory - directory where to unpack package
+*
+
+@param hash reference - contains all information about the package
+
+@return success - 0
+@return error   - error string
 
 =head1 AUTHOR
 
-AMD OSRC Tapper Team, C<< <tapper at amd64.org> >>
+AMD OSRC Tapper Team <tapper@amd64.org>
 
-=head1 BUGS
+=head1 COPYRIGHT AND LICENSE
 
-None.
+This software is Copyright (c) 2012 by Advanced Micro Devices, Inc..
 
-=head1 SUPPORT
+This is free software, licensed under:
 
-You can find documentation for this module with the perldoc command.
+  The (two-clause) FreeBSD License
 
- perldoc Tapper
+=cut
 
-
-=head1 ACKNOWLEDGEMENTS
-
-
-=head1 COPYRIGHT & LICENSE
-
-Copyright 2008-2011 AMD OSRC Tapper Team, all rights reserved.
-
-This program is released under the following license: freebsd

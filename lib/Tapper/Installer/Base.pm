@@ -1,12 +1,16 @@
 package Tapper::Installer::Base;
+BEGIN {
+  $Tapper::Installer::Base::AUTHORITY = 'cpan:AMD';
+}
+{
+  $Tapper::Installer::Base::VERSION = '4.0.1';
+}
 
-use Method::Signatures;
 use Moose;
 
 use common::sense;
 
 use Tapper::Remote::Config;
-use Tapper::Remote::Net;
 use Tapper::Installer::Precondition::Copyfile;
 use Tapper::Installer::Precondition::Exec;
 use Tapper::Installer::Precondition::Fstab;
@@ -20,26 +24,7 @@ use Tapper::Installer::Precondition::Simnow;
 
 extends 'Tapper::Installer';
 
-=head1 NAME
 
-Tapper::Installer::Base - Install everything needed for a test.
-
-=head1 SYNOPSIS
-
- use Tapper::Installer::Base;
-
-=head1 FUNCTIONS
-
-=cut
-
-=head2 free_loop_device
-
-Make sure /dev/loop0 is usable for losetup and kpartx.
-
-@return success - 0
-@return error   - error string
-
-=cut
 
 sub free_loop_device
 {
@@ -73,18 +58,11 @@ sub free_loop_device
         return;
 }
 
-=head2 cleanup
 
-Clean a set of predefine file by deleting all of their content. This prevents
-confusion in certain test suites which could occur when they find old content
-in log files. Only warns on error.
-
-@return success - 0
-
-=cut
-
-method cleanup()
+sub cleanup
 {
+        my ($self) = @_;
+
         $self->log->info('Cleaning up logfiles');
         my @files_to_clean = ('/var/log/messages','/var/log/syslog');
  FILE:
@@ -96,64 +74,27 @@ method cleanup()
                 close $fh;
         }
         return 0;
-};
-
-
-=head2 precondition_install
-
-Encapsulate choosing where to install a precondition. Makes system_install
-function smaller and thus more readable.
-
-@param hash ref - describes precondition to be installed
-@param object   - object of precondition type, used to install
-
-@return success - 0
-@return error   - error string
-
-=cut
-
-method precondition_install($precondition, $inst_obj)
-{
-        # guest in given partition, can be a /dev/partition or a partition in a rawimage file
-        if ($precondition->{mountpartition}) {
-                my $mountfile;
-                $mountfile = $precondition->{mountfile} if $precondition->{mountfile};
-                # $obj is given to the anonymous sub when the sub is called inside guest_install.
-                # This is the way to get an appropriate object with correctly set base directory.
-                # $precondition on the other hand is set in here and the sub carries it to guest_install.
-                return $inst_obj->guest_install(sub{
-                                                        my ($obj) = @_;
-                                                        $obj->install($precondition);
-                                                },
-                                                $precondition->{mountpartition},
-                                                $mountfile);
-        }
-        # guest in given raw image file without partitions
-        elsif ($precondition->{mountfile}) {
-                return $inst_obj->guest_install(sub{
-                                                        my ($obj) = @_;
-                                                        $obj->install($precondition);
-                                                },undef, $precondition->{mountfile});
-        } else {
-                return $inst_obj->install($precondition);
-        }
-        return 0;
 }
-;
 
-=head2 system_install
 
-Install whatever has to be installed. This function is a wrapper around all
-other system installer functions and calls them appropriately. Note that the
-function will not return in case of an error. Instead it throws an exception with
-should be send to the server by Log4perl.
 
-@param string - in what state are we called (autoinstall, other)
-
-=cut
-
-method system_install($state)
+sub send_keep_alive_loop
 {
+        my ($self, $sleeptime) = @_;
+        return unless $sleeptime;
+        while (1) {
+                $self->mcp_inform("keep-alive");
+                sleep($sleeptime);
+        }
+        return;
+}
+
+
+
+sub system_install
+{
+        my ($self, $state) = @_;
+
         my $retval;
         $state ||= 'standard';  # always defined value for state
         # fetch configurations from the server
@@ -165,12 +106,24 @@ method system_install($state)
         $self->{cfg}=$config;
         $self->logdie("can't get local data: $config") if ref $config ne "HASH";
 
-        my $net = Tapper::Remote::Net->new($config);
-        $retval = $net->nfs_mount() unless $state eq 'simnow';
-        $self->logdie($retval) if $retval;
+        if (not $state eq 'simnow') {
+                $retval = $self->nfs_mount();
+                $self->log->warn($retval) if $retval;
+        }
 
         $self->log->info("Installing testrun (".$self->cfg->{testrun_id}.") on host ".$self->cfg->{hostname});
         $self->mcp_inform("start-install") unless $state eq "autoinstall";
+
+        if ($config->{times}{keep_alive_timeout}) {
+                $SIG{CHLD} = 'IGNORE';
+                my $pid = fork();
+                if ($pid == 0) {
+                        $self->send_keep_alive_loop($config->{times}{keep_alive_timeout});
+                        exit;
+                } else {
+                        $config->{keep_alive_child} = $pid;
+                }
+        }
 
         if ($state eq 'simnow') {
                 $retval = $self->free_loop_device();
@@ -187,52 +140,52 @@ method system_install($state)
         foreach my $precondition (@{$config->{preconditions}}) {
                 if ($precondition->{precondition_type} eq 'image')
                 {
-                        $retval = $self->precondition_install($precondition, $image);
+                        $retval = $image->precondition_install($precondition);
                 }
                 elsif ($precondition->{precondition_type} eq 'package')
                 {
                         my $package=Tapper::Installer::Precondition::Package->new($config);
-                        $retval = $self->precondition_install($precondition, $package);
+                        $retval = $package->precondition_install($precondition);
                 }
                 elsif ($precondition->{precondition_type} eq 'copyfile')
                 {
                         my $copyfile = Tapper::Installer::Precondition::Copyfile->new($config);
-                        $retval = $self->precondition_install($precondition, $copyfile);
+                        $retval = $copyfile->precondition_install($precondition);
                 }
                 elsif ($precondition->{precondition_type} eq 'fstab')
                 {
                         my $fstab = Tapper::Installer::Precondition::Fstab->new($config);
-                        $retval = $self->precondition_install($precondition, $fstab);
+                        $retval = $fstab->precondition_install($precondition);
                 }
                 elsif ($precondition->{precondition_type} eq 'prc')
                 {
                         my $prc=Tapper::Installer::Precondition::PRC->new($config);
-                        $retval = $self->precondition_install($precondition, $prc);
+                        $retval = $prc->precondition_install($precondition);
                 }
                 elsif ($precondition->{precondition_type} eq 'rawimage')
                 {
                         my $rawimage=Tapper::Installer::Precondition::Rawimage->new($config);
-                        $retval = $self->precondition_install($precondition, $rawimage);
+                        $retval = $rawimage->precondition_install($precondition);
                 }
                 elsif ($precondition->{precondition_type} eq 'repository')
                 {
                         my $repository=Tapper::Installer::Precondition::Repository->new($config);
-                        $retval = $self->precondition_install($precondition, $repository);
+                        $retval = $repository->precondition_install($precondition);
                 }
                 elsif ($precondition->{precondition_type} eq 'exec')
                 {
                         my $exec=Tapper::Installer::Precondition::Exec->new($config);
-                        $retval = $self->precondition_install($precondition, $exec);
+                        $retval = $exec->precondition_install($precondition);
                 }
                 elsif ($precondition->{precondition_type} eq 'simnow_backend')
                 {
                         my $simnow=Tapper::Installer::Precondition::Simnow->new($config);
-                        $retval = $self->precondition_install($precondition, $simnow);
+                        $retval = $simnow->precondition_install($precondition);
                 }
                 elsif ($precondition->{precondition_type} eq 'kernelbuild')
                 {
                         my $kernelbuild=Tapper::Installer::Precondition::Kernelbuild->new($config);
-                        $retval = $self->precondition_install($precondition, $kernelbuild);
+                        $retval = $kernelbuild->precondition_install($precondition);
                 }
 
                 if ($retval) {
@@ -244,7 +197,7 @@ method system_install($state)
                 }
         }
 
-        $self->cleanup() unless $config->{no_cleanup} or $state eq 'simnow';
+        $self->cleanup() unless $config->{no_cleanup} or $state eq 'simnow' or $state eq 'ssh';
 
         if ( $state eq "standard" and  not ($config->{skip_prepare_boot})) {
                 $self->logdie($retval) if $retval = $image->prepare_boot();
@@ -252,32 +205,93 @@ method system_install($state)
         }
         $image->unmount();
 
+        # no longer send keepalive
+        if ($config->{keep_alive_child}) {
+                kill 15, $config->{keep_alive_child};
+                sleep 2;
+                kill 9, $config->{keep_alive_child};
+        }
+
+
         $self->mcp_inform("end-install");
         $self->log->info("Finished installation of test machine");
 
         given ($state){
                 when ("standard"){
                         return 0 if $config->{installer_stop};
+                        system("sync");
+                        system("sync");
+                        system("sync");
                         system("reboot");
                 }
                 when ('simnow'){
                         #FIXME: don't use hardcoded path
                         my $simnow_config = $self->cfg->{files}{simnow_config};
-                        $retval = qx(/opt/tapper/bin/perl /opt/tapper/bin/tapper-simnow-start --config=$simnow_config);
+                        $retval = qx(/opt/tapper/perl/perls/current/bin/perl /opt/tapper/perl/perls/current/bin/tapper-simnow-start --config=$simnow_config);
                         if ($?) {
                                 $self->log->error("Can not start simnow: $retval");
-                                $self->mcp_send({state => 'error-test',
+                                $self->mcp_send({state => 'error-install',
                                                  error => "Can not start simnow: $retval",
                                                  prc_number => 0});
                         }
-;
+
                 }
         }
         return 0;
-};
+}
 
 
 1;
+
+
+__END__
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Tapper::Installer::Base
+
+=head1 SYNOPSIS
+
+ use Tapper::Installer::Base;
+
+=head1 NAME
+
+Tapper::Installer::Base - Install everything needed for a test.
+
+=head1 FUNCTIONS
+
+=head2 free_loop_device
+
+Make sure /dev/loop0 is usable for losetup and kpartx.
+
+@return success - 0
+@return error   - error string
+
+=head2 cleanup
+
+Clean a set of predefine file by deleting all of their content. This prevents
+confusion in certain test suites which could occur when they find old content
+in log files. Only warns on error.
+
+@return success - 0
+
+=head2 send_keep_alive_loop
+
+Send keepalive messages to MCP in an endless loop.
+
+@param int - sleep time between two keepalives
+
+=head2 system_install
+
+Install whatever has to be installed. This function is a wrapper around all
+other system installer functions and calls them appropriately. Note that the
+function will not return in case of an error. Instead it throws an exception with
+should be send to the server by Log4perl.
+
+@param string - in what state are we called (autoinstall, other)
 
 =head1 AUTHOR
 
@@ -293,9 +307,7 @@ You can find documentation for this module with the perldoc command.
 
  perldoc Tapper
 
-
 =head1 ACKNOWLEDGEMENTS
-
 
 =head1 COPYRIGHT & LICENSE
 
@@ -303,4 +315,17 @@ Copyright 2008-2011 AMD OSRC Tapper Team, all rights reserved.
 
 This program is released under the following license: freebsd
 
+=head1 AUTHOR
+
+AMD OSRC Tapper Team <tapper@amd64.org>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is Copyright (c) 2012 by Advanced Micro Devices, Inc..
+
+This is free software, licensed under:
+
+  The (two-clause) FreeBSD License
+
+=cut
 

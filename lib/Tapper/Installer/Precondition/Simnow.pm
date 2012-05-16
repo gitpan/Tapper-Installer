@@ -1,4 +1,10 @@
 package Tapper::Installer::Precondition::Simnow;
+BEGIN {
+  $Tapper::Installer::Precondition::Simnow::AUTHORITY = 'cpan:AMD';
+}
+{
+  $Tapper::Installer::Precondition::Simnow::VERSION = '4.0.1';
+}
 
 use Moose;
 use common::sense;
@@ -9,21 +15,7 @@ use YAML;
 extends 'Tapper::Installer::Precondition';
 
 
-=head1 NAME
 
-Tapper::Installer::Precondition::Simnow - Generate configs for Simnow
-
-=head1 SYNOPSIS
-
- use Tapper::Installer::Precondition::Simnow;
-
-=head1 FUNCTIONS
-
-=cut
-
-=head2 create_simnow_config
-
-=cut
 
 sub create_simnow_config
 {
@@ -35,20 +27,6 @@ sub create_simnow_config
 
 
 
-=head2 install
-
-Install the tools used to control running of programs on the test
-system. This function is implemented to fullfill the needs of kernel
-testing and is likely to change dramatically in the future due to
-limited extensibility. Furthermore, it has the name of the PRC hard
-coded which isn't a good thing either.
-
-@param hash ref - contains all information about the simnow instance
-
-@return success - 0
-@return error   - error string
-
-=cut
 
 sub install
 {
@@ -69,6 +47,41 @@ sub install
 
 1;
 
+
+__END__
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Tapper::Installer::Precondition::Simnow
+
+=head1 SYNOPSIS
+
+ use Tapper::Installer::Precondition::Simnow;
+
+=head1 NAME
+
+Tapper::Installer::Precondition::Simnow - Generate configs for Simnow
+
+=head1 FUNCTIONS
+
+=head2 create_simnow_config
+
+=head2 install
+
+Install the tools used to control running of programs on the test
+system. This function is implemented to fullfill the needs of kernel
+testing and is likely to change dramatically in the future due to
+limited extensibility. Furthermore, it has the name of the PRC hard
+coded which isn't a good thing either.
+
+@param hash ref - contains all information about the simnow instance
+
+@return success - 0
+@return error   - error string
+
 =head1 AUTHOR
 
 AMD OSRC Tapper Team, C<< <tapper at amd64.org> >>
@@ -83,12 +96,25 @@ You can find documentation for this module with the perldoc command.
 
  perldoc Tapper
 
-
 =head1 ACKNOWLEDGEMENTS
-
 
 =head1 COPYRIGHT & LICENSE
 
 Copyright 2008-2011 AMD OSRC Tapper Team, all rights reserved.
 
 This program is released under the following license: freebsd
+
+=head1 AUTHOR
+
+AMD OSRC Tapper Team <tapper@amd64.org>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is Copyright (c) 2012 by Advanced Micro Devices, Inc..
+
+This is free software, licensed under:
+
+  The (two-clause) FreeBSD License
+
+=cut
+

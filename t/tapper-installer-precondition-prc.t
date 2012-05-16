@@ -33,15 +33,15 @@ my $retval = $prc_installer->get_distro('t/misc/files/SuSE');
 is($retval, "suse", 'Detect SuSE distribution');
 
 $retval = $prc_installer->get_distro('t/misc/files/Debian');
-is($retval, "Debian", 'Detect Debian distribution');
+is($retval, "debian", 'Detect Debian distribution');
 
 $retval = $prc_installer->get_distro("t/");
 is($retval, "", 'Detect unknown distribution');
 
 $retval = $prc_installer->install();
 
-ok(-e "$tempdir/etc/tapper",'Write config file for PRC');
-ok(-e "$tempdir/test.config",'Write config file for WinPRC');
+ok(-e "$tempdir/etc/tapper",'Config file for PRC exists');
+ok(-e "$tempdir/test.config",'Config file for WinPRC exists');
 
 my $success;
 my $prc = {config =>
@@ -49,7 +49,7 @@ my $prc = {config =>
             runtime => 10,
             test_program => "winsst",
             timeout_testprogram => 60}};
-($success, $retval) = $prc_installer->create_win_config($prc);
+$retval = $prc_installer->create_windows_config($prc);
 
 use Data::Dumper;
 
@@ -86,7 +86,7 @@ is_deeply($retval, {guest_number => 1,
                                   timeout_testprogram => 60,
                                  }]}};
 
-($success, $retval) = $prc_installer->create_win_config($prc);
+$retval = $prc_installer->create_windows_config($prc);
 is_deeply($retval, {guest_number => 1,
                     hostname =>  "uruk",
                     paths =>
@@ -110,7 +110,7 @@ is_deeply($retval, {guest_number => 1,
                     test2_prog =>  "none"
                    }, 'Generate config for WinSST');
 
-($success, $retval) = $prc_installer->create_config($prc);
+$retval = $prc_installer->create_unix_config($prc);
 cmp_deeply($retval, superhashof($config), 'Create config');
 
 done_testing();

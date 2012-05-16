@@ -1,51 +1,32 @@
 package Tapper::Installer::Precondition;
+BEGIN {
+  $Tapper::Installer::Precondition::AUTHORITY = 'cpan:AMD';
+}
+{
+  $Tapper::Installer::Precondition::VERSION = '4.0.1';
+}
 
 use strict;
 use warnings;
+use 5.010;
 
 use Hash::Merge::Simple 'merge';
 use File::Type;
 use File::Basename;
-use Method::Signatures;
 use Moose;
 use Socket;
 use Sys::Hostname;
 use YAML;
-
+use File::Temp qw/tempdir/;
 
 extends 'Tapper::Installer';
 
-=head1 NAME
-
-Tapper::Installer::Precondition - Base class with common functions
-for Tapper::Installer::Precondition modules
-
-=head1 SYNOPSIS
-
- use Tapper::Installer::Precondition;
-
-=head1 FUNCTIONS
-
-=cut
 
 
-=head2 get_file_type
 
-Return the file type of a given file. "rpm, "deb", "tar", "gzip", "bz2" and
-"iso" 9660 cd images are recognised at the moment. If file does not exists at
-the given file name, only suffix analysis will be available. To enforce any of
-the above mentioned types, just set the suffix of the file accordingly.
-
-@param string - file name
-
-@returnlist success - (0, rpm|deb|iso|tar|gzip|bzip2)
-@returnlist error   - (1, error string)
-
-=cut
-
-method get_file_type($file)
+sub get_file_type
 {
-
+        my ($self, $file) = @_;
         my @file_split=split(/\./,$file);
         my $type=$file_split[-1];
         if ($type eq "iso") {
@@ -84,10 +65,174 @@ method get_file_type($file)
         } else {
                 return(1, "$file is of unrecognised file type \"$type\"");
         }
-};
+}
 
 
 
+
+
+sub gethostname
+{
+        my ($self) = @_;
+        my $hostname = Sys::Hostname::hostname();
+        if ($hostname   =~ m/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/) {
+                ($hostname) = gethostbyaddr(inet_aton($hostname), AF_INET) or ( print("Can't get hostname: $!") and exit 1);
+                $hostname   =~ s/^(\w+?)\..+$/$1/;
+                system("hostname", "$hostname");
+        }
+        return $hostname;
+}
+
+
+sub cleanup
+{
+        my ($self) = @_;
+        foreach my $order (@{$self->cfg->{cleanup} || []}) {
+                $order->{call}->(@{$order->{options} || []});
+        }
+        return 0;
+}
+
+
+
+sub handle_source_url
+{
+        my ($self, $precondition) = @_;
+
+        if ( $precondition->{source_url} =~ m{^nfs://(.+/)([^/]+)(/?)$} ) {
+                my $nfs_dir = tempdir (CLEANUP => 1); # allow to have multiple nfs mount
+                $self->log_and_exec("mount","-t nfs","$1", $nfs_dir);
+                $precondition->{name} = $precondition->{filename} = "$nfs_dir/$2";
+                push @{$self->cfg->{cleanup}}, {call => sub {$self->log_and_exec(@_)},
+                                                options => ['umount',$nfs_dir]};
+        }
+        return $precondition;
+}
+
+
+
+sub precondition_install
+{
+        my ($self, $precondition) = @_;
+
+        $precondition = $self->handle_source_url($precondition) if $precondition->{source_url};
+
+        my $retval;
+        my ($error, $loop);
+        $self->makedir($self->cfg->{paths}{guest_mount_dir}) if not -d $self->cfg->{paths}{guest_mount_dir};
+
+        my $image;
+        my $partition = $precondition->{mountpartition};
+        my $new_base_dir = $self->cfg->{paths}{base_dir};
+
+        if ($precondition->{mountfile}) {
+                $image        = $self->cfg->{paths}{base_dir}.$precondition->{mountfile};
+                $new_base_dir = $self->cfg->{paths}{guest_mount_dir};
+                if ( $precondition->{mountpartition} ) {
+                        # make sure loop device is free
+                        # don't use losetup -f, until it is available on installer NFS root
+                        $self->log_and_exec("losetup -d /dev/loop0"); # ignore error since most of the time device won't be already bound
+                        return $retval if $retval = $self->log_and_exec("losetup /dev/loop0 $image");
+                        return $retval if $retval = $self->log_and_exec("kpartx -a /dev/loop0");
+                        return $retval if $retval = $self->log_and_exec("mount /dev/mapper/loop0$partition ".$new_base_dir);
+                } else {
+                        return $retval if $retval = $self->log_and_exec("mount -o loop $image ".$new_base_dir);
+                }
+        }
+        elsif ($precondition->{mountpartition}) {
+                $new_base_dir = $self->cfg->{paths}{guest_mount_dir};
+                return $retval if $retval = $self->log_and_exec("mount $partition ".$new_base_dir);
+        }
+        elsif ($precondition->{mountdir}) {
+                        $new_base_dir .= $precondition->{mountdir};
+        }
+
+        # call
+        my $old_basedir = $self->cfg->{paths}{base_dir};
+        $self->cfg->{paths}{base_dir} = $new_base_dir;
+        return $retval if $retval=$self->install($precondition);
+
+
+        if ($precondition->{mountfile}) {
+                if ( $precondition->{mountpartition} ) {
+                        return $retval if $retval = $self->log_and_exec("umount /dev/mapper/loop0$partition");
+                        return $retval if $retval = $self->log_and_exec("kpartx -d /dev/loop0");
+                        if ($retval = $self->log_and_exec("losetup -d /dev/loop0")) {
+                                sleep (2);
+                                return $retval if $retval = $self->log_and_exec("kpartx -d /dev/loop0");
+                                return $retval if $retval = $self->log_and_exec("losetup -d /dev/loop0");
+                        }
+                } else {
+                        $retval = $self->log_and_exec("umount $new_base_dir");
+                        $self->log->error("Can not unmount $new_base_dir: $retval") if $retval;
+
+                        # seems like mount -o loop uses a loop device that is not freed at umount
+                        $self->log_and_exec("kpartx -d /dev/loop0");
+                        $self->log_and_exec("losetup -d /dev/loop0");
+                }
+        }
+        elsif ($precondition->{mountpartition}) {
+                        $retval = $self->log_and_exec("umount $new_base_dir");
+                        $self->log->error("Can not unmount $new_base_dir: $retval") if $retval;
+        }
+        $self->cleanup();
+        $self->cfg->{paths}{base_dir} = $old_basedir;
+        return 0;
+
+}
+
+
+
+sub file_save
+{
+        my ($self, $output, $filename) = @_;
+        my $testrun_id = $self->cfg->{test_run};
+        my $destdir = $self->cfg->{paths}{output_dir}."/$testrun_id/install/";
+        my $destfile = $destdir."/$filename";
+        if (not -d $destdir) {
+                system("mkdir","-p",$destdir) == 0 or return ("Can't create $destdir:$!");
+        }
+        open(my $FH,">",$destfile)
+          or return ("Can't open $destfile:$!");
+        print $FH $output;
+        close $FH;
+}
+
+
+
+1;
+
+__END__
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Tapper::Installer::Precondition
+
+=head1 SYNOPSIS
+
+ use Tapper::Installer::Precondition;
+
+=head1 NAME
+
+Tapper::Installer::Precondition - Base class with common functions
+for Tapper::Installer::Precondition modules
+
+=head1 FUNCTIONS
+
+=head2 get_file_type
+
+Return the file type of a given file. "rpm, "deb", "tar", "gzip", "bz2" and
+"iso" 9660 cd images are recognised at the moment. If file does not exists at
+the given file name, only suffix analysis will be available. To enforce any of
+the above mentioned types, just set the suffix of the file accordingly.
+
+@param string - file name
+
+@returnlist success - (0, rpm|deb|iso|tar|gzip|bzip2)
+@returnlist error   - (1, error string)
 
 =head2 gethostname
 
@@ -98,128 +243,40 @@ hostname is set to the DNS hostname associated to this IP address.
 
 @return hostname of the machine as set in the kernel
 
-=cut
+=head2 cleanup
 
-method gethostname
-{
-	my $hostname = Sys::Hostname::hostname();
-	if ($hostname   =~ m/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/) {
-                ($hostname) = gethostbyaddr(inet_aton($hostname), AF_INET) or ( print("Can't get hostname: $!") and exit 1);
-                $hostname   =~ s/^(\w+?)\..+$/$1/;
-                system("hostname", "$hostname");
-        }
-	return $hostname;
-};
-
-
-=head2 log_and_exec
-
-Execute a given command. Make sure the command is logged if requested and none
-of its output pollutes the console. In scalar context the function returns 0
-for success and the output of the command on error. In array context the
-function always return a list containing the return value of the command and
-the output of the command.
-
-@param string - command
-
-@return success - 0
-@return error   - error string
-@returnlist success - (0, output)
-@returnlist error   - (return value of command, output)
-
-=cut
-
-method log_and_exec(@cmd)
-{
-        my $cmd = join " ",@cmd;
-	$self->log->debug( $cmd );
-        my $output=`$cmd 2>&1`;
-        my $retval=$?;
-        if (not defined($output)) {
-                $output = "Executing $cmd failed";
-                $retval = 1;
-        }
-        chomp $output if $output;
-        if ($retval) {
-                return ($retval >> 8, $output) if wantarray;
-                return $output;
-        }
-        return (0, $output) if wantarray;
-        return 0;
-}
-;
-
-
-=head2 guest_install
-
-Execute a command given as first parameter inside the partition given as
-second parameter which may be inside the image file given as third
-parameter or a device name (in which case the third arguement has to be undef)
-
-@param sub    - execute this function with base dir set to mounted image file
-@param string - partition number to mount inside the image
-@param string - (optional) image file path
+Clean up all remaining preparations (given in config).
 
 @return success - 0
 @return error   - error string
 
-=cut
+=head2 handle_source_url
 
-method guest_install($sub, $partition, $image)
-{
-        return "can only be called from an object" if not ref($self);
-        $image = $self->cfg->{paths}{base_dir}.$image;
-        my ($error, $loop);
+A preconditions source may need some preparation, e.g. if it's located
+on an NFS share we need to mount this share. This function handles these
+preparations.
 
-        my $retval;
-        if ($image and $partition) {
-                # make sure loop device is free
-                # don't use losetup -f, until it is available on installer NFS root
-                $self->log_and_exec("losetup -d /dev/loop0"); # ignore error since most of the time device won't be already bound
-                $self->makedir($self->cfg->{paths}{guest_mount_dir}) if not -d $self->cfg->{paths}{guest_mount_dir};
-                return $retval if $retval = $self->log_and_exec("losetup /dev/loop0 $image");
-                return $retval if $retval = $self->log_and_exec("kpartx -a /dev/loop0");
-                return $retval if $retval = $self->log_and_exec("mount /dev/mapper/loop0$partition ".$self->cfg->{paths}{guest_mount_dir});
-        }
-        elsif ($image and not $partition) {
-                return $retval if $retval = $self->log_and_exec("mount -o loop $image ".$self->cfg->{paths}{guest_mount_dir});
+@param hash ref - precondition
 
-        }
-        else
-        {
-                return $retval if $retval = $self->get_device($partition);
-                $partition = $retval;
-                return $retval if $retval = $self->log_and_exec("mount $partition ".$self->cfg->{paths}{guest_mount_dir});
-        }
+@return success - hash ref with updated precondition
+@return error   - error string
 
-        my $config = merge($self->cfg, {paths=> {base_dir=> $self->cfg->{paths}{guest_mount_dir}}});
-        my $object = ref($self)->new($config);
-        return $retval if $retval=$sub->($object);
+=head2 precondition_install
 
-        if ($image and $partition) {
-                return $retval if $retval = $self->log_and_exec("umount /dev/mapper/loop0$partition");
-                return $retval if $retval = $self->log_and_exec("kpartx -d /dev/loop0");
-                if ($retval = $self->log_and_exec("losetup -d /dev/loop0")) {
-                        sleep (2);
-                        return $retval if $retval = $self->log_and_exec("kpartx -d /dev/loop0");
-                        return $retval if $retval = $self->log_and_exec("losetup -d /dev/loop0");
-                }
-        }
-        else
-        {
-                $retval = $self->log_and_exec("umount ".$self->cfg->{paths}{guest_mount_dir});
-                $self->log->error("Can not unmount ".$self->cfg->{paths}{guest_mount_dir}.": $retval") if $retval;
-        }
+Install a precondition with preparations up front. This could be
+mounting an NFS share or installing inside a virtualisation guest or
+even no preparation at all.
 
-        # seems like mount -o loop uses a loop device that is not freed at umount
-        if ($image) {
-                $self->log_and_exec("kpartx -d /dev/loop0");
-                $self->log_and_exec("losetup -d /dev/loop0");
-        }
+A guest can be given as image, partition or directory. This function
+makes the necessary preparations, calls the right precondition install
+function and cleans up afterwards. An image can be given as file name
+and partition or file name only. The later is supposed to be an image
+file containing just one partition.
 
-        return 0;
-};
+@param hash ref - precondition
 
+@return success - 0
+@return error   - error string
 
 =head2 file_save
 
@@ -231,46 +288,17 @@ Save output as file for MCP to find it and upload it to reports receiver.
 @return success - 0
 @return errorr  - error string
 
-=cut
-
-method file_save($output, $filename)
-{
-        my $testrun_id = $self->cfg->{test_run};
-        my $destdir = $self->cfg->{paths}{output_dir}."/$testrun_id/install/";
-        my $destfile = $destdir."/$filename";
-        if (not -d $destdir) {
-                system("mkdir","-p",$destdir) == 0 or return ("Can't create $destdir:$!");
-        }
-        open(my $FH,">",$destfile)
-          or return ("Can't open $destfile:$!");
-        print $FH $output;
-        close $FH;
-};
-
-
-
-1;
-
 =head1 AUTHOR
 
-AMD OSRC Tapper Team, C<< <tapper at amd64.org> >>
+AMD OSRC Tapper Team <tapper@amd64.org>
 
-=head1 BUGS
+=head1 COPYRIGHT AND LICENSE
 
-None.
+This software is Copyright (c) 2012 by Advanced Micro Devices, Inc..
 
-=head1 SUPPORT
+This is free software, licensed under:
 
-You can find documentation for this module with the perldoc command.
+  The (two-clause) FreeBSD License
 
- perldoc Tapper
+=cut
 
-
-=head1 ACKNOWLEDGEMENTS
-
-
-=head1 COPYRIGHT & LICENSE
-
-Copyright 2008-2011 AMD OSRC Tapper Team, all rights reserved.
-
-This program is released under the following license: freebsd

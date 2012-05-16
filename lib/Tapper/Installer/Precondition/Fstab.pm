@@ -1,41 +1,26 @@
 package Tapper::Installer::Precondition::Fstab;
+BEGIN {
+  $Tapper::Installer::Precondition::Fstab::AUTHORITY = 'cpan:AMD';
+}
+{
+  $Tapper::Installer::Precondition::Fstab::VERSION = '4.0.1';
+}
 
 use strict;
 use warnings;
 
-use Method::Signatures;
 use Moose;
 use YAML;
 use File::Basename;
 extends 'Tapper::Installer::Precondition';
 
 
-=head1 NAME
 
-Tapper::Installer::Precondition::Fstab - Insert a line into /etc/fstab
 
-=head1 SYNOPSIS
+sub install {
+        my ($self, $precond) = @_;
 
- use Tapper::Installer::Precondition::Fstab;
-
-=head1 FUNCTIONS
-
-=cut
-
-=head2 install
-
-Install a file from an nfs share.
-
-@param hash reference - contains all precondition information
-
-@return success - 0
-@return error   - error string
-
-=cut
-
-method install($precond)
-{
-	my ($filename, $path, $retval);
+        my ($filename, $path, $retval);
 
         my $basedir = $self->cfg->{paths}{base_dir};
         my $line = $precond->{line};
@@ -46,30 +31,49 @@ method install($precond)
 
         system($cmd) == 0 or return ("Could not patch /etc/fstab: $!");
         return 0;
-};
+}
 
 1;
 
+__END__
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Tapper::Installer::Precondition::Fstab
+
+=head1 SYNOPSIS
+
+ use Tapper::Installer::Precondition::Fstab;
+
+=head1 NAME
+
+Tapper::Installer::Precondition::Fstab - Insert a line into /etc/fstab
+
+=head1 FUNCTIONS
+
+=head2 install
+
+Install a file from an nfs share.
+
+@param hash reference - contains all precondition information
+
+@return success - 0
+@return error   - error string
+
 =head1 AUTHOR
 
-AMD OSRC Tapper Team, C<< <tapper at amd64.org> >>
+AMD OSRC Tapper Team <tapper@amd64.org>
 
-=head1 BUGS
+=head1 COPYRIGHT AND LICENSE
 
-None.
+This software is Copyright (c) 2012 by Advanced Micro Devices, Inc..
 
-=head1 SUPPORT
+This is free software, licensed under:
 
-You can find documentation for this module with the perldoc command.
+  The (two-clause) FreeBSD License
 
- perldoc Tapper
+=cut
 
-
-=head1 ACKNOWLEDGEMENTS
-
-
-=head1 COPYRIGHT & LICENSE
-
-Copyright 2008-2011 AMD OSRC Tapper Team, all rights reserved.
-
-This program is released under the following license: freebsd

@@ -1,4 +1,10 @@
 package Tapper::Installer::Precondition::Kernelbuild;
+BEGIN {
+  $Tapper::Installer::Precondition::Kernelbuild::AUTHORITY = 'cpan:AMD';
+}
+{
+  $Tapper::Installer::Precondition::Kernelbuild::VERSION = '4.0.1';
+}
 
 
 use Moose;
@@ -8,84 +14,33 @@ extends 'Tapper::Installer::Precondition';
 use strict;
 use warnings;
 
-=head1 NAME
 
-Tapper::Installer::Precondition::Kernelbuild - Build and install a kernel from git
-
-=head1 SYNOPSIS
-
- my $kernel_precondition = '
-precondition_type: kernelbuild
-git_url: git://osrc.amd.com/linux-2.6.git
-changeset: HEAD
-patchdir: /patches
-';
-
- use Tapper::Installer::Precondition::Kernelbuild;
- $kernel = Tapper::Installer::Precondition::Kernelbuild->new($config);
- $kernel->install(YAML::Load($kernel_precondition));
-
-
-=head1 FUNCTIONS
-
-=cut
-
-=head2 fix_git_url
-
-URL rewrite.
-
-@param string git_url
-
-@return string - fixed git url
-
-=cut
 
 sub fix_git_url
 {
-	my ($self, $git_url) = @_;
+        my ($self, $git_url) = @_;
         $self->log->info("Git URL before rewrite: $git_url");
-	$git_url =~ s|^git://osrc((\.osrc)?\.amd\.com)?/|git://wotan.amd.com/|;
+        $git_url =~ s|^git://osrc((\.osrc)?\.amd\.com)?/|git://wotan.amd.com/|;
         $self->log->info("Git URL after  rewrite: $git_url");
-	return $git_url;
+        return $git_url;
 }
 
-=head2 git_get
-
-This function encapsulates getting a kernel source directory out of a git
-repository. It changes the current directory into the the repository.
-
-@param string - repository URL
-@param string - revision in this repository
-
-
-@return success - 0
-@return error   - error string
-
-=cut
 
 sub git_get
 {
-	my ($self, $git_url, $git_rev)=@_;
+        my ($self, $git_url, $git_rev)=@_;
 
         # git may generate more output than log_and_exec can handle, thus keep the system()
         chdir $self->cfg->{paths}{base_dir};
-	$git_url = $self->fix_git_url($git_url);
-	system("git","clone","-q",$git_url,"linux") == 0
+        $git_url = $self->fix_git_url($git_url);
+        system("git","clone","-q",$git_url,"linux") == 0
           or return("unable to clone git repository $git_url");
-	chdir ("linux");
+        chdir ("linux");
         system("git","checkout",$git_rev) == 0
           or return("unable to check out $git_rev from git repository $git_url");
-	return(0);
+        return(0);
 }
 
-=head2 get_config
-
-Get the kernel config.
-
-@return success - 0
-@return error   - error string
-
-=cut
 
 sub get_config
 {
@@ -101,14 +56,6 @@ sub get_config
         return 0;
 }
 
-=head2 make_kernel
-
-Build and install a kernel and write all log messages to STDOUT/STDERR.
-
-@return success - 0
-@return error   - error string
-
-=cut
 
 sub make_kernel
 {
@@ -131,29 +78,16 @@ sub make_kernel
         return 0;
 }
 
-=head2 younger
-
-Sort function, sort files based on modification time.
-
-=cut
 
 sub younger { stat($a)->mtime() <=> stat($b)->mtime() }
 
-=head2 make_initrd
-
-Build and install an initrd and write all log messages to STDOUT/STDERR.
-
-@return success - 0
-@return error   - error string
-
-=cut
 
 sub make_initrd
 {
         my ($self) = @_;
         my ($error, $kernelversion) = $self->log_and_exec("make","kernelversion");
         my $kernel_file = "vmlinuz-$kernelversion";
-        
+
         # double block, the outermost belongs to if, the innermost can be left with last;
         # great stuff, isn't it?
         if (not -e "/boot/$kernel_file") {{
@@ -176,12 +110,13 @@ sub make_initrd
                 }
 
                 my @files = sort younger </boot/vmlinuz-*>;
-                if (@files and $files[0] =~/vmlinuz-(.*)/) {
-                        $kernel_file = "vmlinuz-$1";
+                if (@files) {
+                        $kernel_file   = $files[0];
+                        $kernelversion = $1;
                         last;
                 }
                 my $filename;
-                $filename = join("/tmp/bootdir-content");
+                $filename = "/tmp/bootdir-content";
                 system("ls -l /boot/ > $filename");
                 return "kernel install failed, can not find new kernel";
         }}
@@ -193,7 +128,7 @@ sub make_initrd
         $modules   .= " ide-core 3c59x tg3 mii amd8111e e1000e bnx2 bnx2x ixgb";
         my $mkinitrd_command = "mkinitrd -k /boot/$kernel_file -i /boot/initrd-$kernelversion ";
         $mkinitrd_command   .= qq(-m "$modules");
-        
+
         $self->log->debug($mkinitrd_command);
         system($mkinitrd_command) == 0
           or return("Can not create initrd file, see log file");
@@ -210,17 +145,6 @@ sub make_initrd
 
 
 
-=head2 install
-
-Get the source if needed, prepare the config, build and install the
-kernel and initrd file.
-
-@param hash reference - contains all information about the kernel
-
-@return success - 0
-@return error   - error string
-
-=cut
 
 sub install
 {
@@ -228,22 +152,23 @@ sub install
         my $git_url     = $build->{git_url} or return 'No git url given';
         my $git_rev     = $build->{git_changeset} || 'HEAD';
         my $config_file = $build->{configfile_path};
-        
-	$self->log->debug("Installing kernel from $git_url $git_rev");
+
+        $self->log->debug("Installing kernel from $git_url $git_rev");
 
         my $git_path   = qx(which git);
+        chomp $git_path;
         return "Can not find git. Git_path is '$git_path'" if not -e $git_path;
 
-	pipe (my $read, my $write);
-	return ("Can't open pipe:$!") if not (defined $read and defined $write);
+        pipe (my $read, my $write);
+        return ("Can't open pipe:$!") if not (defined $read and defined $write);
 
 
-	# we need to fork for chroot
-	my $pid = fork();
-	return "fork failed: $!" if not defined $pid;
+        # we need to fork for chroot
+        my $pid = fork();
+        return "fork failed: $!" if not defined $pid;
 
-	# hello child
-	if ($pid == 0) {
+        # hello child
+        if ($pid == 0) {
                 close $read;
                 my ($error, $output);
 
@@ -288,8 +213,8 @@ sub install
                 $ENV{TAPPER_OUTPUT_PATH}     = $output_dir;
 
 
-		# chroot to execute script inside the future root file system
-		chroot $self->cfg->{paths}{base_dir};
+                # chroot to execute script inside the future root file system
+                chroot $self->cfg->{paths}{base_dir};
                 chdir('linux');
 
                 $error = $self->make_kernel();
@@ -306,7 +231,7 @@ sub install
 
                 close $write;
                 exit 0;
-	} else {
+        } else {
                 close $write;
                 my $select = IO::Select->new( $read );
                 my ($error, $output);
@@ -329,34 +254,107 @@ sub install
                 if ($?) {
                         return("Building kernel from $git_url $git_rev failed: $output");
                 }
-		return(0);
-	}
+                return(0);
+        }
 }
 ;
 
 
 1;
 
+__END__
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Tapper::Installer::Precondition::Kernelbuild
+
+=head1 SYNOPSIS
+
+ my $kernel_precondition = '
+precondition_type: kernelbuild
+git_url: git://osrc.amd.com/linux-2.6.git
+changeset: HEAD
+patchdir: /patches
+';
+
+ use Tapper::Installer::Precondition::Kernelbuild;
+ $kernel = Tapper::Installer::Precondition::Kernelbuild->new($config);
+ $kernel->install(YAML::Load($kernel_precondition));
+
+=head1 NAME
+
+Tapper::Installer::Precondition::Kernelbuild - Build and install a kernel from git
+
+=head1 FUNCTIONS
+
+=head2 fix_git_url
+
+URL rewrite.
+
+@param string git_url
+
+@return string - fixed git url
+
+=head2 git_get
+
+This function encapsulates getting a kernel source directory out of a git
+repository. It changes the current directory into the the repository.
+
+@param string - repository URL
+@param string - revision in this repository
+
+@return success - 0
+@return error   - error string
+
+=head2 get_config
+
+Get the kernel config.
+
+@return success - 0
+@return error   - error string
+
+=head2 make_kernel
+
+Build and install a kernel and write all log messages to STDOUT/STDERR.
+
+@return success - 0
+@return error   - error string
+
+=head2 younger
+
+Sort function, sort files based on modification time.
+
+=head2 make_initrd
+
+Build and install an initrd and write all log messages to STDOUT/STDERR.
+
+@return success - 0
+@return error   - error string
+
+=head2 install
+
+Get the source if needed, prepare the config, build and install the
+kernel and initrd file.
+
+@param hash reference - contains all information about the kernel
+
+@return success - 0
+@return error   - error string
+
 =head1 AUTHOR
 
-AMD OSRC Tapper Team, C<< <tapper at amd64.org> >>
+AMD OSRC Tapper Team <tapper@amd64.org>
 
-=head1 BUGS
+=head1 COPYRIGHT AND LICENSE
 
-None.
+This software is Copyright (c) 2012 by Advanced Micro Devices, Inc..
 
-=head1 SUPPORT
+This is free software, licensed under:
 
-You can find documentation for this module with the perldoc command.
+  The (two-clause) FreeBSD License
 
- perldoc Tapper
+=cut
 
-
-=head1 ACKNOWLEDGEMENTS
-
-
-=head1 COPYRIGHT & LICENSE
-
-Copyright 2008-2011 AMD OSRC Tapper Team, all rights reserved.
-
-This program is released under the following license: freebsd

@@ -1,44 +1,27 @@
 package Tapper::Installer::Precondition::Rawimage;
+BEGIN {
+  $Tapper::Installer::Precondition::Rawimage::AUTHORITY = 'cpan:AMD';
+}
+{
+  $Tapper::Installer::Precondition::Rawimage::VERSION = '4.0.1';
+}
 
 use strict;
 use warnings;
 
 use File::Path;
-use Method::Signatures;
 use Moose;
 extends 'Tapper::Installer::Precondition';
 
 
-=head1 NAME
 
-Tapper::Installer::Precondition::Rawimage - Create a raw image to be used as guest root for virtualisation
 
-This precondition should only be created when parsing "virt" preconditions. It's not useful for kernel developers.
+sub install {
+        my ($self, $img) = @_;
 
-=head1 SYNOPSIS
-
- use Tapper::Installer::Precondition::Rawimage;
-
-=head1 FUNCTIONS
-
-=cut
-
-=head2 install
-
-Create the raw image.
-
-@param hash ref - contains all information about the image to be created
-
-@return success - 0
-@return error   - return value of system or error string
-
-=cut
-
-method install($img)
-{
         return "not filename given for rawimage" if not $img->{name};
 
-        my $img_size = 2048*1024; # 2GByte - size of standard rawimage in kbyte 
+        my $img_size = 2048*1024; # 2GByte - size of standard rawimage in kbyte
 
         my $filename = $img->{name};
         my $path     = $self->cfg->{paths}{base_dir}.$img->{path};
@@ -53,7 +36,7 @@ method install($img)
                         return "Can't create $file: $message";
                 }
         }
-        
+
         $filename = $path."/".$filename;
 
         ($error, $retval) = $self->log_and_exec("dd if=/dev/zero of=$filename bs=1024 count=$size");
@@ -61,12 +44,12 @@ method install($img)
 
         ($error, $retval) = $self->log_and_exec("/sbin/mkfs.ext3 -F -L tapper $filename");
         return $retval if $error;
-        
+
         $self->makedir($self->cfg->{paths}{guest_mount_dir}) if not -d $self->cfg->{paths}{guest_mount_dir};
         ($error, $retval) = $self->log_and_exec("mount -o loop $filename ".$self->cfg->{paths}{guest_mount_dir});
         return $retval if $error;
         my $mountdir = $self->cfg->{paths}{guest_mount_dir};
-        
+
         mkdir ("$mountdir/etc") or return ("Can't create /etc in raw image $filename: $!");
         open(my $FH,">","$mountdir/etc/tapper-release") or return "Can't open /etc/tapper-release in raw image $filename: $!";
         print $FH "Tapper";
@@ -80,26 +63,47 @@ method install($img)
 
 1;
 
+__END__
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Tapper::Installer::Precondition::Rawimage
+
+=head1 SYNOPSIS
+
+ use Tapper::Installer::Precondition::Rawimage;
+
+=head1 NAME
+
+Tapper::Installer::Precondition::Rawimage - Create a raw image to be used as guest root for virtualisation
+
+This precondition should only be created when parsing "virt" preconditions. It's not useful for kernel developers.
+
+=head1 FUNCTIONS
+
+=head2 install
+
+Create the raw image.
+
+@param hash ref - contains all information about the image to be created
+
+@return success - 0
+@return error   - return value of system or error string
+
 =head1 AUTHOR
 
-AMD OSRC Tapper Team, C<< <tapper at amd64.org> >>
+AMD OSRC Tapper Team <tapper@amd64.org>
 
-=head1 BUGS
+=head1 COPYRIGHT AND LICENSE
 
-None.
+This software is Copyright (c) 2012 by Advanced Micro Devices, Inc..
 
-=head1 SUPPORT
+This is free software, licensed under:
 
-You can find documentation for this module with the perldoc command.
+  The (two-clause) FreeBSD License
 
- perldoc Tapper
+=cut
 
-
-=head1 ACKNOWLEDGEMENTS
-
-
-=head1 COPYRIGHT & LICENSE
-
-Copyright 2008-2011 AMD OSRC Tapper Team, all rights reserved.
-
-This program is released under the following license: freebsd

@@ -1,4 +1,6 @@
-#! perl
+#! /usr/bin/perl
+# PODNAME: tapper-installer-client
+# ABSTRACT: cmdline frontend to Installer.simnow
 
 use warnings;
 use strict;
@@ -8,7 +10,7 @@ use Daemon::Daemonize qw/:all/;
 use Tapper::Installer::Base;
 
 BEGIN {
-	Log::Log4perl::init('/etc/log4perl.cfg');
+        Log::Log4perl::init('/etc/log4perl.cfg');
 }
 
 # don't use the config of the last simnow session
@@ -24,19 +26,40 @@ $client->system_install("simnow");
 
 
 
+
+__END__
 =pod
+
+=encoding utf-8
 
 =head1 NAME
 
-tapper-installer-client.pl - control the installation and setup of an automatic test system
+tapper-installer-client - cmdline frontend to Installer.simnow
 
 =head1 SYNOPSIS
 
-tapper-installer-client.pl 
+tapper-installer-client.pl
 
 =head1 DESCRIPTION
 
 This program is the start script of the Tapper::Installer project. It calls
 Tapper::Installer::Base which cares for the rest.
 
+=head1 NAME
+
+tapper-installer-client.pl - control the installation and setup of an automatic test system
+
+=head1 AUTHOR
+
+AMD OSRC Tapper Team <tapper@amd64.org>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is Copyright (c) 2012 by Advanced Micro Devices, Inc..
+
+This is free software, licensed under:
+
+  The (two-clause) FreeBSD License
+
 =cut
+

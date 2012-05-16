@@ -1,33 +1,24 @@
 package Tapper::Installer::Precondition::Exec;
+BEGIN {
+  $Tapper::Installer::Precondition::Exec::AUTHORITY = 'cpan:AMD';
+}
+{
+  $Tapper::Installer::Precondition::Exec::VERSION = '4.0.1';
+}
 
+use 5.010;
 use strict;
 use warnings;
 
-use Method::Signatures;
 use Moose;
 use IO::Handle; # needed to set pipe nonblocking
 use IO::Select;
+use Linux::Personality qw/personality PER_LINUX32 /;
 
 extends 'Tapper::Installer::Precondition';
 
 
-=head1 NAME
 
-Tapper::Installer::Precondition::Exec - Execute a program inside the installed system
-
-=head1 SYNOPSIS
-
- use Tapper::Installer::Precondition::Exec;
-
-=head1 FUNCTIONS
-
-=cut
-
-=head2 set_env_variables
-
-Set environment variables for executed command/program.
-
-=cut
 
 sub set_env_variables
 {
@@ -42,18 +33,6 @@ sub set_env_variables
         return;
 }
 
-=head2 install
-
-This function executes a program inside the installed system. This supersedes
-the postinstall script facility of the package precondition and makes this
-feature available to all other preconditions.
-
-@param hash reference - contains all information about the program
-
-@return success - 0
-@return error   - error string
-
-=cut
 
 sub install
 {
@@ -65,35 +44,42 @@ sub install
 
         if ($exec->{filename}) {
                 $command = $exec->{filename};
-                return("$command is not an executable") if not -x $self->cfg->{paths}{base_dir}.$command;
+                my $cmd_full = $self->cfg->{paths}{base_dir}.$command;
+                if (not -x $cmd_full) {
+                        $self->log_and_exec ("chmod", "ugo+x", $cmd_full);
+                        return("tried to execute $cmd_full which is not an execuable and can not set exec flag") if not -x $cmd_full;
+                }
         }
 
         $self->log->debug("executing $command with options ",join (" ",@options));
 
 
-	pipe (my $read, my $write);
-	return ("Can't open pipe:$!") if not (defined $read and defined $write);
+        pipe (my $read, my $write);
+        return ("Can't open pipe:$!") if not (defined $read and defined $write);
 
-	# we need to fork for chroot
-	my $pid = fork();
-	return "fork failed: $!" if not defined $pid;
+        # we need to fork for chroot
+        my $pid = fork();
+        return "fork failed: $!" if not defined $pid;
 
-	# hello child
-	if ($pid == 0) {
+        # hello child
+        if ($pid == 0) {
                 $self->set_env_variables;
 
                 close $read;
-		# chroot to execute script inside the future root file system
+                # chroot to execute script inside the future root file system
                 my ($error, $output) = $self->log_and_exec("mount -o bind /dev/ ".$self->cfg->{paths}{base_dir}."/dev");
                 ($error, $output)    = $self->log_and_exec("mount -t sysfs sys ".$self->cfg->{paths}{base_dir}."/sys");
                 ($error, $output)    = $self->log_and_exec("mount -t proc proc ".$self->cfg->{paths}{base_dir}."/proc");
-		chroot $self->cfg->{paths}{base_dir};
-		chdir ("/");
+                my $arch = $exec->{arch} // "";
+                personality(PER_LINUX32) if $arch eq 'linux32';
+                chroot $self->cfg->{paths}{base_dir};
+                chdir ("/");
+                %ENV = (%ENV, %{$exec->{environment} || {} });
                 ($error, $output)=$self->log_and_exec($command,@options);
                 print( $write $output, "\n") if $output;
                 close $write;
                 exit $error;
-	} else {
+        } else {
                 close $write;
                 my $select = IO::Select->new( $read );
                 my ($error, $output);
@@ -115,34 +101,59 @@ sub install
                 if ($?) {
                         return("executing $command failed");
                 }
-		return(0);
-	}
+                return(0);
+        }
 }
 
 
 
 1;
 
+__END__
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Tapper::Installer::Precondition::Exec
+
+=head1 SYNOPSIS
+
+ use Tapper::Installer::Precondition::Exec;
+
+=head1 NAME
+
+Tapper::Installer::Precondition::Exec - Execute a program inside the installed system
+
+=head1 FUNCTIONS
+
+=head2 set_env_variables
+
+Set environment variables for executed command/program.
+
+=head2 install
+
+This function executes a program inside the installed system. This supersedes
+the postinstall script facility of the package precondition and makes this
+feature available to all other preconditions.
+
+@param hash reference - contains all information about the program
+
+@return success - 0
+@return error   - error string
+
 =head1 AUTHOR
 
-AMD OSRC Tapper Team, C<< <tapper at amd64.org> >>
+AMD OSRC Tapper Team <tapper@amd64.org>
 
-=head1 BUGS
+=head1 COPYRIGHT AND LICENSE
 
-None.
+This software is Copyright (c) 2012 by Advanced Micro Devices, Inc..
 
-=head1 SUPPORT
+This is free software, licensed under:
 
-You can find documentation for this module with the perldoc command.
+  The (two-clause) FreeBSD License
 
- perldoc Tapper
+=cut
 
-
-=head1 ACKNOWLEDGEMENTS
-
-
-=head1 COPYRIGHT & LICENSE
-
-Copyright 2008-2011 AMD OSRC Tapper Team, all rights reserved.
-
-This program is released under the following license: freebsd

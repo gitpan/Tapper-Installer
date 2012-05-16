@@ -1,50 +1,83 @@
+
 use strict;
 use warnings;
 
-use inc::Module::Install;
+use 5.010;
 
-name     'Tapper-Installer';
-all_from 'lib/Tapper/Installer.pm';
-author   'AMD OSRC Tapper Team <tapper@amd64.org>';
-license  'freebsd';
-
-install_script 'bin/tapper-installer-client.pl';
-install_script 'bin/tapper-installer-simnow.pl';
-
-author_requires 'Module::Install::WriteAll';
-
-build_requires 'Test::More';
-build_requires 'Test::Deep';
-build_requires 'Test::Perl::Critic';
-build_requires 'Test::Fixture::DBIC::Schema';
-build_requires 'Test::MockModule';
-build_requires 'Tapper::Test' => "3.000010";
-build_requires 'File::Temp';
-build_requires 'Cwd';
+use ExtUtils::MakeMaker 6.30;
 
 
-requires 'Tapper::Remote' => "3.000010";
-requires 'Tapper::Base' => "3.000010";
-requires 'File::Basename';
-requires 'File::Path';
-requires 'File::Type';
-requires 'Hash::Merge::Simple';
-requires 'File::ShareDir';
 
-requires 'Daemon::Daemonize';    # for simnow installer
-requires 'IPC::Open3';
-requires 'IO::Select';
-requires 'List::Util';
-requires 'Log::Log4perl';
-requires 'Method::Signatures';
-requires 'Moose';
+my %WriteMakefileArgs = (
+  "ABSTRACT" => "Tapper - Install everything needed for a test",
+  "AUTHOR" => "AMD OSRC Tapper Team <tapper\@amd64.org>",
+  "BUILD_REQUIRES" => {
+    "Cwd" => 0,
+    "Data::Dumper" => 0,
+    "Test::Deep" => 0,
+    "Test::MockModule" => 0,
+    "Test::More" => 0,
+    "subs" => 0
+  },
+  "CONFIGURE_REQUIRES" => {
+    "ExtUtils::MakeMaker" => "6.30"
+  },
+  "DISTNAME" => "Tapper-Installer",
+  "EXE_FILES" => [
+    "bin/tapper-installer-client.pl",
+    "bin/tapper-installer-simnow.pl"
+  ],
+  "LICENSE" => "open_source",
+  "NAME" => "Tapper::Installer",
+  "PREREQ_PM" => {
+    "Daemon::Daemonize" => 0,
+    "File::Basename" => 0,
+    "File::Path" => 0,
+    "File::ShareDir" => 0,
+    "File::Temp" => 0,
+    "File::Type" => 0,
+    "Hash::Merge::Simple" => 0,
+    "IO::Handle" => 0,
+    "IO::Select" => 0,
+    "Linux::Personality" => 0,
+    "Log::Log4perl" => 0,
+    "Moose" => 0,
+    "MooseX::Log::Log4perl" => 0,
+    "Socket" => 0,
+    "Sys::Hostname" => 0,
+    "Tapper::Base" => 0,
+    "Tapper::Remote::Config" => 0,
+    "Tapper::Remote::Net" => 0,
+    "URI::Escape" => 0,
+    "YAML" => 0,
+    "common::sense" => 0,
+    "strict" => 0,
+    "warnings" => 0
+  },
+  "VERSION" => "4.0.1",
+  "test" => {
+    "TESTS" => "t/*.t"
+  }
+);
 
-requires 'YAML' => "0.72";
-requires 'YAML::Syck' => "1.17";
 
-auto_install;
+unless ( eval { ExtUtils::MakeMaker->VERSION(6.56) } ) {
+  my $br = delete $WriteMakefileArgs{BUILD_REQUIRES};
+  my $pp = $WriteMakefileArgs{PREREQ_PM};
+  for my $mod ( keys %$br ) {
+    if ( exists $pp->{$mod} ) {
+      $pp->{$mod} = $br->{$mod} if $br->{$mod} > $pp->{$mod};
+    }
+    else {
+      $pp->{$mod} = $br->{$mod};
+    }
+  }
+}
 
-repository 'git://github.com/amd/Tapper-Installer.git';
-bugtracker 'http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Tapper-Installer';
+delete $WriteMakefileArgs{CONFIGURE_REQUIRES}
+  unless eval { ExtUtils::MakeMaker->VERSION(6.52) };
 
-WriteAll;
+WriteMakefile(%WriteMakefileArgs);
+
+
+
