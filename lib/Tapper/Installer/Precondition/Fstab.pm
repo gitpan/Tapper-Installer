@@ -3,7 +3,7 @@ BEGIN {
   $Tapper::Installer::Precondition::Fstab::AUTHORITY = 'cpan:AMD';
 }
 {
-  $Tapper::Installer::Precondition::Fstab::VERSION = '4.0.1';
+  $Tapper::Installer::Precondition::Fstab::VERSION = '4.0.2';
 }
 
 use strict;

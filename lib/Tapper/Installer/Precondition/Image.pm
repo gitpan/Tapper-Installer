@@ -3,7 +3,7 @@ BEGIN {
   $Tapper::Installer::Precondition::Image::AUTHORITY = 'cpan:AMD';
 }
 {
-  $Tapper::Installer::Precondition::Image::VERSION = '4.0.1';
+  $Tapper::Installer::Precondition::Image::VERSION = '4.0.2';
 }
 
 use strict;

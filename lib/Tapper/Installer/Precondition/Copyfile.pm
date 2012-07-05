@@ -3,7 +3,7 @@ BEGIN {
   $Tapper::Installer::Precondition::Copyfile::AUTHORITY = 'cpan:AMD';
 }
 {
-  $Tapper::Installer::Precondition::Copyfile::VERSION = '4.0.1';
+  $Tapper::Installer::Precondition::Copyfile::VERSION = '4.0.2';
 }
 
 use strict;

@@ -3,7 +3,7 @@ BEGIN {
   $Tapper::Installer::Precondition::Simnow::AUTHORITY = 'cpan:AMD';
 }
 {
-  $Tapper::Installer::Precondition::Simnow::VERSION = '4.0.1';
+  $Tapper::Installer::Precondition::Simnow::VERSION = '4.0.2';
 }
 
 use Moose;

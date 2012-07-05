@@ -3,7 +3,7 @@ BEGIN {
   $Tapper::Installer::Precondition::Rawimage::AUTHORITY = 'cpan:AMD';
 }
 {
-  $Tapper::Installer::Precondition::Rawimage::VERSION = '4.0.1';
+  $Tapper::Installer::Precondition::Rawimage::VERSION = '4.0.2';
 }
 
 use strict;

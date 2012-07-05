@@ -8,6 +8,9 @@ README
 bin/tapper-installer-client.pl
 bin/tapper-installer-simnow.pl
 dist.ini
+inc/Devel/AssertOS.pm
+inc/Devel/AssertOS/Linux.pm
+inc/Devel/CheckOS.pm
 lib/Tapper/Installer.pm
 lib/Tapper/Installer/Base.pm
 lib/Tapper/Installer/Precondition.pm
@@ -26,6 +29,7 @@ lib/auto/Tapper/Installer/startfiles/gentoo/etc/init.d/tapper
 lib/auto/Tapper/Installer/startfiles/redhat/etc/init.d/tapper
 lib/auto/Tapper/Installer/startfiles/suse/etc/init.d/tapper
 lib/auto/Tapper/Installer/startfiles/tapper/etc/init.d/tapper
+lib/auto/Tapper/Installer/startfiles/ubuntu/etc/init.d/tapper
 t/00-load.t
 t/file_type/tarbz2file
 t/file_type/tarfile
@@ -36,7 +40,6 @@ t/misc/files/Debian/etc/issue
 t/misc/files/SuSE/etc/SuSE-release
 t/misc/packages/debian_package_test.deb
 t/release-eol.t
-t/release-no-tabs.t
 t/release-pod-coverage.t
 t/release-pod-syntax.t
 t/tapper-installer-base.t

@@ -3,7 +3,7 @@ BEGIN {
   $Tapper::Installer::Precondition::PRC::AUTHORITY = 'cpan:AMD';
 }
 {
-  $Tapper::Installer::Precondition::PRC::VERSION = '4.0.1';
+  $Tapper::Installer::Precondition::PRC::VERSION = '4.0.2';
 }
 
 use strict;
@@ -35,6 +35,8 @@ sub create_common_config
         $config->{paths}           = $self->{cfg}->{paths};
         $config->{files}           = $self->{cfg}->{files} if $self->{cfg}->{files} ;
         $config->{testplan}        = $self->{cfg}->{testplan} if $self->{cfg}->{testplan};
+        $config->{log_to_file}     = $self->{cfg}->{log_to_file};
+
 
         return $config;
 }
@@ -108,6 +110,8 @@ sub install_startscript
                                 ($error, $retval)=$self->log_and_exec("insserv","/etc/init.d/tapper");
                         } elsif ($distro=~m/(redhat)|(fedora)/) {
                                 ($error, $retval)=$self->log_and_exec("chkconfig","--add","tapper");
+                        } elsif ($distro=~m/(ubuntu)/) {
+                                ($error, $retval)=$self->log_and_exec("update-rc.d","-f", "tapper", "defaults");
                         } elsif ($distro=~/gentoo/) {
                                 ($error, $retval)=$self->log_and_exec("rc-update", "add", "tapper_gentoo", "default");
                         } else {
@@ -222,7 +226,7 @@ sub get_distro
                 my $issue = <$fh>;
                 close $fh;
                 my $distro;
-                ($distro) = $issue =~ m/(Debian)/;
+                ($distro) = $issue =~ m/(Debian|Ubuntu)/i;
                 return lc($distro) if $distro;
         }
         return "";

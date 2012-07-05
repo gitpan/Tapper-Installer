@@ -3,7 +3,7 @@ BEGIN {
   $Tapper::Installer::Base::AUTHORITY = 'cpan:AMD';
 }
 {
-  $Tapper::Installer::Base::VERSION = '4.0.1';
+  $Tapper::Installer::Base::VERSION = '4.0.2';
 }
 
 use Moose;
@@ -110,6 +110,11 @@ sub system_install
                 $retval = $self->nfs_mount();
                 $self->log->warn($retval) if $retval;
         }
+
+        if ($self->cfg->{log_to_file}) {
+                $self->log_to_file('install');
+        }
+
 
         $self->log->info("Installing testrun (".$self->cfg->{testrun_id}.") on host ".$self->cfg->{hostname});
         $self->mcp_inform("start-install") unless $state eq "autoinstall";
