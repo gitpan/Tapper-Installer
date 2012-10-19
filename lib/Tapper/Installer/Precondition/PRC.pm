@@ -3,7 +3,7 @@ BEGIN {
   $Tapper::Installer::Precondition::PRC::AUTHORITY = 'cpan:AMD';
 }
 {
-  $Tapper::Installer::Precondition::PRC::VERSION = '4.0.2';
+  $Tapper::Installer::Precondition::PRC::VERSION = '4.1.0';
 }
 
 use strict;

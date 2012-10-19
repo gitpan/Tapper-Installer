@@ -1,5 +1,8 @@
 Revision history for Tapper-Installer
 
+4.1.0     2012-10-19
+        - [FIX] when to call log cleanup
+
 4.0.2     2012-07-05
         - assert OS = Linux
         - [FIX] regexp and typo

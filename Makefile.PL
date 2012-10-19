@@ -26,8 +26,8 @@ my %WriteMakefileArgs = (
   },
   "DISTNAME" => "Tapper-Installer",
   "EXE_FILES" => [
-    "bin/tapper-installer-client.pl",
-    "bin/tapper-installer-simnow.pl"
+    "bin/tapper-installer-simnow.pl",
+    "bin/tapper-installer-client.pl"
   ],
   "LICENSE" => "open_source",
   "NAME" => "Tapper::Installer",
@@ -56,7 +56,7 @@ my %WriteMakefileArgs = (
     "strict" => 0,
     "warnings" => 0
   },
-  "VERSION" => "4.0.2",
+  "VERSION" => "4.1.0",
   "test" => {
     "TESTS" => "t/*.t"
   }

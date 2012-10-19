@@ -3,7 +3,7 @@ BEGIN {
   $Tapper::Installer::Precondition::Kernelbuild::AUTHORITY = 'cpan:AMD';
 }
 {
-  $Tapper::Installer::Precondition::Kernelbuild::VERSION = '4.0.2';
+  $Tapper::Installer::Precondition::Kernelbuild::VERSION = '4.1.0';
 }
 
 

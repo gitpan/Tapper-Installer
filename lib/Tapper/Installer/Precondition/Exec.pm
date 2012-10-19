@@ -3,7 +3,7 @@ BEGIN {
   $Tapper::Installer::Precondition::Exec::AUTHORITY = 'cpan:AMD';
 }
 {
-  $Tapper::Installer::Precondition::Exec::VERSION = '4.0.2';
+  $Tapper::Installer::Precondition::Exec::VERSION = '4.1.0';
 }
 
 use 5.010;
