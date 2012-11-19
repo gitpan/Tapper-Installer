@@ -1,9 +1,9 @@
 package Tapper::Installer::Base;
 BEGIN {
-  $Tapper::Installer::Base::AUTHORITY = 'cpan:AMD';
+  $Tapper::Installer::Base::AUTHORITY = 'cpan:TAPPER';
 }
 {
-  $Tapper::Installer::Base::VERSION = '4.1.0';
+  $Tapper::Installer::Base::VERSION = '4.1.1';
 }
 
 use Moose;

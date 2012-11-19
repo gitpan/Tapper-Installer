@@ -1,11 +1,11 @@
 package Tapper::Installer;
-# git description: v4.0.2-2-gc7a3fdc
+# git description: v4.1.0-1-gbb7ee4f
 
 BEGIN {
-  $Tapper::Installer::AUTHORITY = 'cpan:AMD';
+  $Tapper::Installer::AUTHORITY = 'cpan:TAPPER';
 }
 {
-  $Tapper::Installer::VERSION = '4.1.0';
+  $Tapper::Installer::VERSION = '4.1.1';
 }
 # ABSTRACT: Tapper - Install everything needed for a test
 

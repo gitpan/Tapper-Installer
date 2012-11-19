@@ -1,9 +1,9 @@
 package Tapper::Installer::Precondition::Repository;
 BEGIN {
-  $Tapper::Installer::Precondition::Repository::AUTHORITY = 'cpan:AMD';
+  $Tapper::Installer::Precondition::Repository::AUTHORITY = 'cpan:TAPPER';
 }
 {
-  $Tapper::Installer::Precondition::Repository::VERSION = '4.1.0';
+  $Tapper::Installer::Precondition::Repository::VERSION = '4.1.1';
 }
 
 use strict;

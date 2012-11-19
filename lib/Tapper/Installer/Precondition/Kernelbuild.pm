@@ -1,9 +1,9 @@
 package Tapper::Installer::Precondition::Kernelbuild;
 BEGIN {
-  $Tapper::Installer::Precondition::Kernelbuild::AUTHORITY = 'cpan:AMD';
+  $Tapper::Installer::Precondition::Kernelbuild::AUTHORITY = 'cpan:TAPPER';
 }
 {
-  $Tapper::Installer::Precondition::Kernelbuild::VERSION = '4.1.0';
+  $Tapper::Installer::Precondition::Kernelbuild::VERSION = '4.1.1';
 }
 
 

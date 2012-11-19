@@ -1,9 +1,9 @@
 package Tapper::Installer::Precondition::Fstab;
 BEGIN {
-  $Tapper::Installer::Precondition::Fstab::AUTHORITY = 'cpan:AMD';
+  $Tapper::Installer::Precondition::Fstab::AUTHORITY = 'cpan:TAPPER';
 }
 {
-  $Tapper::Installer::Precondition::Fstab::VERSION = '4.1.0';
+  $Tapper::Installer::Precondition::Fstab::VERSION = '4.1.1';
 }
 
 use strict;

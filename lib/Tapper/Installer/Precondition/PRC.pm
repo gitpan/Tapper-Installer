@@ -1,9 +1,9 @@
 package Tapper::Installer::Precondition::PRC;
 BEGIN {
-  $Tapper::Installer::Precondition::PRC::AUTHORITY = 'cpan:AMD';
+  $Tapper::Installer::Precondition::PRC::AUTHORITY = 'cpan:TAPPER';
 }
 {
-  $Tapper::Installer::Precondition::PRC::VERSION = '4.1.0';
+  $Tapper::Installer::Precondition::PRC::VERSION = '4.1.1';
 }
 
 use strict;

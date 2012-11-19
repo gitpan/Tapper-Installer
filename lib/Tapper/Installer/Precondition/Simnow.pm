@@ -1,9 +1,9 @@
 package Tapper::Installer::Precondition::Simnow;
 BEGIN {
-  $Tapper::Installer::Precondition::Simnow::AUTHORITY = 'cpan:AMD';
+  $Tapper::Installer::Precondition::Simnow::AUTHORITY = 'cpan:TAPPER';
 }
 {
-  $Tapper::Installer::Precondition::Simnow::VERSION = '4.1.0';
+  $Tapper::Installer::Precondition::Simnow::VERSION = '4.1.1';
 }
 
 use Moose;

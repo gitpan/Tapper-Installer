@@ -1,9 +1,9 @@
 package Tapper::Installer::Precondition::Rawimage;
 BEGIN {
-  $Tapper::Installer::Precondition::Rawimage::AUTHORITY = 'cpan:AMD';
+  $Tapper::Installer::Precondition::Rawimage::AUTHORITY = 'cpan:TAPPER';
 }
 {
-  $Tapper::Installer::Precondition::Rawimage::VERSION = '4.1.0';
+  $Tapper::Installer::Precondition::Rawimage::VERSION = '4.1.1';
 }
 
 use strict;

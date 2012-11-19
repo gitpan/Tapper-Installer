@@ -1,9 +1,9 @@
 package Tapper::Installer::Precondition::Copyfile;
 BEGIN {
-  $Tapper::Installer::Precondition::Copyfile::AUTHORITY = 'cpan:AMD';
+  $Tapper::Installer::Precondition::Copyfile::AUTHORITY = 'cpan:TAPPER';
 }
 {
-  $Tapper::Installer::Precondition::Copyfile::VERSION = '4.1.0';
+  $Tapper::Installer::Precondition::Copyfile::VERSION = '4.1.1';
 }
 
 use strict;

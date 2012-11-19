@@ -1,9 +1,9 @@
 package Tapper::Installer::Precondition::Exec;
 BEGIN {
-  $Tapper::Installer::Precondition::Exec::AUTHORITY = 'cpan:AMD';
+  $Tapper::Installer::Precondition::Exec::AUTHORITY = 'cpan:TAPPER';
 }
 {
-  $Tapper::Installer::Precondition::Exec::VERSION = '4.1.0';
+  $Tapper::Installer::Precondition::Exec::VERSION = '4.1.1';
 }
 
 use 5.010;
